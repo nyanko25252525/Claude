@@ -266,6 +266,9 @@ class Game:
         self.messages: List[str] = []
         self.game_over = False
         self.won = False
+        self.death_cause = ""
+        self.kills_count = 0
+        self.turn_count = 0
 
         # Initialize curses settings
         curses.curs_set(0)  # Hide cursor
@@ -279,6 +282,7 @@ class Game:
             curses.init_pair(3, curses.COLOR_RED, curses.COLOR_BLACK)     # Enemy
             curses.init_pair(4, curses.COLOR_GREEN, curses.COLOR_BLACK)   # Item
             curses.init_pair(5, curses.COLOR_CYAN, curses.COLOR_BLACK)    # Treasure
+            curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLACK)   # Tombstone
 
     def initialize(self):
         """Initialize the game"""
@@ -350,6 +354,7 @@ class Game:
         if dx != 0 or dy != 0:
             self._move_player(dx, dy)
             self._update_enemies()
+            self.turn_count += 1
 
         return True
 
@@ -394,12 +399,14 @@ class Game:
         if not defender.alive:
             self.add_message(f"{defender.name} has been defeated!")
             if isinstance(defender, Enemy) and isinstance(attacker, Player):
+                self.kills_count += 1
                 leveled = attacker.gain_exp(defender.exp_value)
                 if leveled:
                     self.add_message(f"Level up! You are now level {attacker.level}!")
             elif isinstance(defender, Player):
                 self.game_over = True
-                self.add_message("You have died! Game Over. Press 'q' to quit.")
+                self.death_cause = f"a {attacker.name}"
+                self.add_message("You have died! Game Over.")
 
     def _pickup_item(self, item: Item):
         """Pickup an item"""
@@ -450,8 +457,97 @@ class Game:
         else:
             self.add_message("Your inventory is empty.")
 
+    def _show_tombstone(self):
+        """Display NetHack-style tombstone on death"""
+        self.stdscr.clear()
+        height, width = self.stdscr.getmaxyx()
+
+        # Tombstone ASCII art
+        tombstone = [
+            "                 _____",
+            "            _   /     \\   _",
+            "           / \\ | R.I.P | / \\",
+            "          /   \\|_______|/   \\",
+            "         |                   |",
+            "         |                   |",
+            "         |   Here lies the   |",
+            "         |   brave Hero      |",
+            "         |                   |",
+            "         |                   |",
+            "         |                   |",
+            "         |                   |",
+            "         |                   |",
+            "         |___________________|",
+            "        /                     \\",
+            "       /                       \\",
+            "      /__    ___________    ____\\",
+            "         | /             \\ |",
+            "         |/               \\|",
+        ]
+
+        # Center tombstone
+        start_y = max(1, (height - len(tombstone) - 10) // 2)
+        start_x = max(0, (width - 40) // 2)
+
+        # Draw tombstone
+        color = curses.color_pair(6) if curses.has_colors() else 0
+        for i, line in enumerate(tombstone):
+            try:
+                self.stdscr.addstr(start_y + i, start_x, line, color)
+            except curses.error:
+                pass
+
+        # Add death information
+        info_y = start_y + 7
+        info_lines = [
+            f"Level {self.player.level}",
+            f"Killed by {self.death_cause}",
+            f"",
+            f"Enemies defeated: {self.kills_count}",
+            f"Turns survived: {self.turn_count}",
+        ]
+
+        for i, line in enumerate(info_lines):
+            if i < 2:  # Name and level on tombstone
+                text_x = start_x + (40 - len(line)) // 2
+                try:
+                    self.stdscr.addstr(info_y + i, text_x, line, color)
+                except curses.error:
+                    pass
+
+        # Add statistics below tombstone
+        stat_y = start_y + len(tombstone) + 2
+        for i, line in enumerate(info_lines[2:]):
+            text_x = start_x + (40 - len(line)) // 2
+            try:
+                if curses.has_colors():
+                    self.stdscr.addstr(stat_y + i, text_x, line, curses.color_pair(2))
+                else:
+                    self.stdscr.addstr(stat_y + i, text_x, line)
+            except curses.error:
+                pass
+
+        # Add quit message
+        quit_msg = "Press 'q' to quit"
+        quit_y = stat_y + len(info_lines) + 1
+        quit_x = start_x + (40 - len(quit_msg)) // 2
+        try:
+            if curses.has_colors():
+                self.stdscr.addstr(quit_y, quit_x, quit_msg, curses.color_pair(3))
+            else:
+                self.stdscr.addstr(quit_y, quit_x, quit_msg)
+        except curses.error:
+            pass
+
+        self.stdscr.refresh()
+
     def render(self):
         """Render the game"""
+        # Show tombstone if player died
+        if self.game_over and not self.won:
+            self._show_tombstone()
+            return
+
         self.stdscr.clear()
         height, width = self.stdscr.getmaxyx()
 

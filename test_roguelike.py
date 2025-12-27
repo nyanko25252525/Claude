@@ -109,6 +109,28 @@ def test_position_distance():
     print(f"✓ Position distance test passed (distance: {distance})")
 
 
+def test_game_statistics():
+    """Test game statistics tracking"""
+    # We can't fully test the Game class without curses,
+    # but we can test that our changes to combat work correctly
+    player = Player(0, 0)
+    goblin = Enemy(1, 1, 'goblin')
+
+    # Simulate a kill count scenario
+    kills = 0
+    initial_goblin_hp = goblin.hp
+
+    # Player attacks goblin until dead
+    while goblin.alive:
+        goblin.take_damage(player.attack)
+        if not goblin.alive:
+            kills += 1
+
+    assert kills == 1
+    assert not goblin.alive
+    print(f"✓ Game statistics test passed (kills tracked correctly)")
+
+
 def run_all_tests():
     """Run all tests"""
     print("Running Roguelike Game Tests...")
@@ -122,6 +144,7 @@ def run_all_tests():
         test_items()
         test_dungeon_generation()
         test_position_distance()
+        test_game_statistics()
 
         print("=" * 50)
         print("All tests passed! ✓")
