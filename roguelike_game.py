@@ -124,6 +124,20 @@ class Enemy(Entity):
         self.enemy_type = enemy_type
 
 
+class Pet(Entity):
+    """Pet character that follows the player"""
+    def __init__(self, x: int, y: int, pet_type: str = 'dog'):
+        types = {
+            'dog': {'char': 'd', 'name': 'Dog', 'hp': 30, 'attack': 8, 'defense': 1},
+            'cat': {'char': 'f', 'name': 'Cat', 'hp': 20, 'attack': 6, 'defense': 0},
+        }
+        stats = types.get(pet_type, types['dog'])
+        super().__init__(x, y, stats['char'], stats['name'],
+                        stats['hp'], stats['attack'], stats['defense'])
+        self.pet_type = pet_type
+        self.loyalty = 100  # Pet loyalty level
+
+
 class Item:
     """Base class for items"""
     def __init__(self, x: int, y: int, char: str, name: str, description: str):
@@ -261,6 +275,7 @@ class Game:
         self.stdscr = stdscr
         self.dungeon = Dungeon()
         self.player: Optional[Player] = None
+        self.pet: Optional[Pet] = None
         self.enemies: List[Enemy] = []
         self.items: List[Item] = []
         self.messages: List[str] = []
@@ -269,6 +284,13 @@ class Game:
         self.death_cause = ""
         self.kills_count = 0
         self.turn_count = 0
+
+        # Multi-floor system
+        self.current_floor = 1
+        self.max_floors = 5
+        self.floors_data = {}  # Store floor data for revisiting
+        self.stairs_down_pos: Optional[Position] = None
+        self.stairs_up_pos: Optional[Position] = None
 
         # Initialize curses settings
         curses.curs_set(0)  # Hide cursor
@@ -283,33 +305,121 @@ class Game:
             curses.init_pair(4, curses.COLOR_GREEN, curses.COLOR_BLACK)   # Item
             curses.init_pair(5, curses.COLOR_CYAN, curses.COLOR_BLACK)    # Treasure
             curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLACK)   # Tombstone
+            curses.init_pair(7, curses.COLOR_BLUE, curses.COLOR_BLACK)    # Pet
+            curses.init_pair(8, curses.COLOR_MAGENTA, curses.COLOR_BLACK) # Stairs
 
     def initialize(self):
         """Initialize the game"""
+        # Choose pet
+        self._choose_pet()
+
         self.add_message("Welcome to the Dungeon! Find the treasure and survive!")
         self.add_message("Use arrow keys or WASD to move. Press 'q' to quit.")
+        self.add_message("Use '<' and '>' to use stairs.")
 
+        # Generate first floor
+        self._generate_floor(self.current_floor)
+
+    def _choose_pet(self):
+        """Let player choose a pet"""
+        self.stdscr.clear()
+        height, width = self.stdscr.getmaxyx()
+
+        title = "Choose your companion:"
+        options = [
+            "1. Dog (d) - Loyal and strong (HP: 30, ATK: 8)",
+            "2. Cat (f) - Agile and quick (HP: 20, ATK: 6)",
+        ]
+
+        start_y = height // 2 - 3
+
+        try:
+            self.stdscr.addstr(start_y, (width - len(title)) // 2, title)
+            for i, option in enumerate(options):
+                self.stdscr.addstr(start_y + 2 + i, (width - len(option)) // 2, option)
+            self.stdscr.addstr(start_y + 5, (width - 30) // 2, "Press 1 or 2 to choose...")
+        except curses.error:
+            pass
+
+        self.stdscr.refresh()
+
+        # Wait for choice
+        while True:
+            key = self.stdscr.getch()
+            if key == ord('1'):
+                self.pet_type = 'dog'
+                break
+            elif key == ord('2'):
+                self.pet_type = 'cat'
+                break
+
+    def _generate_floor(self, floor_num: int):
+        """Generate a new floor"""
         # Generate dungeon
+        self.dungeon = Dungeon()
         self.dungeon.generate()
 
         # Place player
         pos = self.dungeon.get_random_floor_position()
-        self.player = Player(pos.x, pos.y)
+        if self.player is None:
+            self.player = Player(pos.x, pos.y)
+        else:
+            self.player.pos.x = pos.x
+            self.player.pos.y = pos.y
 
-        # Spawn enemies
-        self._spawn_enemies()
+        # Place or move pet near player
+        if self.pet is None:
+            self.pet = Pet(pos.x + 1, pos.y, self.pet_type)
+        else:
+            self.pet.pos.x = pos.x + 1
+            self.pet.pos.y = pos.y
+
+        # Clear entities
+        self.enemies = []
+        self.items = []
+
+        # Spawn enemies (more and stronger on deeper floors)
+        self._spawn_enemies(floor_num)
 
         # Place items
         self._spawn_items()
 
-        # Place treasure
-        pos = self.dungeon.get_random_floor_position()
-        self.items.append(Treasure(pos.x, pos.y))
+        # Place stairs
+        if floor_num < self.max_floors:
+            pos = self.dungeon.get_random_floor_position()
+            self.stairs_down_pos = Position(pos.x, pos.y)
+        else:
+            self.stairs_down_pos = None
 
-    def _spawn_enemies(self):
-        """Spawn enemies in the dungeon"""
-        num_enemies = random.randint(5, 10)
-        enemy_types = ['goblin'] * 5 + ['orc'] * 3 + ['troll'] * 1 + ['dragon'] * 1
+        if floor_num > 1:
+            pos = self.dungeon.get_random_floor_position()
+            self.stairs_up_pos = Position(pos.x, pos.y)
+        else:
+            self.stairs_up_pos = None
+
+        # Place treasure on last floor
+        if floor_num == self.max_floors:
+            pos = self.dungeon.get_random_floor_position()
+            self.items.append(Treasure(pos.x, pos.y))
+
+        self.add_message(f"Entered floor {floor_num}")
+
+    def _spawn_enemies(self, floor_num: int = 1):
+        """Spawn enemies in the dungeon (stronger on deeper floors)"""
+        base_enemies = 5 + floor_num
+        num_enemies = random.randint(base_enemies, base_enemies + 3)
+
+        # Enemy distribution changes with floor depth
+        if floor_num == 1:
+            enemy_types = ['goblin'] * 8 + ['orc'] * 2
+        elif floor_num == 2:
+            enemy_types = ['goblin'] * 5 + ['orc'] * 4 + ['troll'] * 1
+        elif floor_num == 3:
+            enemy_types = ['goblin'] * 3 + ['orc'] * 5 + ['troll'] * 2
+        elif floor_num == 4:
+            enemy_types = ['orc'] * 4 + ['troll'] * 4 + ['dragon'] * 2
+        else:  # Floor 5
+            enemy_types = ['orc'] * 2 + ['troll'] * 5 + ['dragon'] * 3
 
         for _ in range(num_enemies):
             pos = self.dungeon.get_random_floor_position()
@@ -337,6 +447,14 @@ class Game:
         if self.game_over:
             return key != ord('q')
 
+        # Stairs
+        if key == ord('>'):
+            self._use_stairs_down()
+            return True
+        elif key == ord('<'):
+            self._use_stairs_up()
+            return True
+
         # Movement
         dx, dy = 0, 0
         if key == curses.KEY_UP or key == ord('w') or key == ord('W'):
@@ -354,6 +472,7 @@ class Game:
         if dx != 0 or dy != 0:
             self._move_player(dx, dy)
             self._update_enemies()
+            self._update_pet()
             self.turn_count += 1
 
         return True
@@ -398,15 +517,20 @@ class Game:
 
         if not defender.alive:
             self.add_message(f"{defender.name} has been defeated!")
-            if isinstance(defender, Enemy) and isinstance(attacker, Player):
-                self.kills_count += 1
-                leveled = attacker.gain_exp(defender.exp_value)
-                if leveled:
-                    self.add_message(f"Level up! You are now level {attacker.level}!")
+            if isinstance(defender, Enemy):
+                if isinstance(attacker, Player):
+                    self.kills_count += 1
+                    leveled = attacker.gain_exp(defender.exp_value)
+                    if leveled:
+                        self.add_message(f"Level up! You are now level {attacker.level}!")
+                elif isinstance(attacker, Pet):
+                    self.kills_count += 1
             elif isinstance(defender, Player):
                 self.game_over = True
                 self.death_cause = f"a {attacker.name}"
                 self.add_message("You have died! Game Over.")
+            elif isinstance(defender, Pet):
+                self.add_message(f"Your {defender.name} has died! Rest in peace, loyal companion.")
 
     def _pickup_item(self, item: Item):
         """Pickup an item"""
@@ -443,11 +567,67 @@ class Game:
                 # Attack player if adjacent
                 if new_x == self.player.pos.x and new_y == self.player.pos.y:
                     self._combat(enemy, self.player)
+                # Attack pet if adjacent
+                elif self.pet and self.pet.alive and new_x == self.pet.pos.x and new_y == self.pet.pos.y:
+                    self._combat(enemy, self.pet)
                 # Move if walkable and no other enemy there
                 elif self.dungeon.is_walkable(new_x, new_y):
                     if not self._get_entity_at(new_x, new_y, self.enemies):
                         enemy.pos.x = new_x
                         enemy.pos.y = new_y
+
+    def _update_pet(self):
+        """Update pet AI - follow player and attack nearby enemies"""
+        if not self.pet or not self.pet.alive:
+            return
+
+        # Check for adjacent enemies to attack
+        for enemy in self.enemies:
+            if not enemy.alive:
+                continue
+
+            dist = self.pet.pos.distance_to(enemy.pos)
+            if dist <= 1.5:  # Adjacent
+                self._combat(self.pet, enemy)
+                return  # Pet attacks instead of moving
+
+        # Follow player if not too close
+        dist_to_player = self.pet.pos.distance_to(self.player.pos)
+        if dist_to_player > 2:
+            dx = 0 if self.pet.pos.x == self.player.pos.x else (1 if self.pet.pos.x < self.player.pos.x else -1)
+            dy = 0 if self.pet.pos.y == self.player.pos.y else (1 if self.pet.pos.y < self.player.pos.y else -1)
+
+            new_x = self.pet.pos.x + dx
+            new_y = self.pet.pos.y + dy
+
+            # Move if walkable and not occupied
+            if self.dungeon.is_walkable(new_x, new_y):
+                if not self._get_entity_at(new_x, new_y, self.enemies):
+                    if not (new_x == self.player.pos.x and new_y == self.player.pos.y):
+                        self.pet.pos.x = new_x
+                        self.pet.pos.y = new_y
+
+    def _use_stairs_down(self):
+        """Use stairs to go down"""
+        if self.stairs_down_pos and self.player.pos == self.stairs_down_pos:
+            if self.current_floor < self.max_floors:
+                self.current_floor += 1
+                self._generate_floor(self.current_floor)
+            else:
+                self.add_message("There are no stairs going down here.")
+        else:
+            self.add_message("There are no stairs here.")
+
+    def _use_stairs_up(self):
+        """Use stairs to go up"""
+        if self.stairs_up_pos and self.player.pos == self.stairs_up_pos:
+            if self.current_floor > 1:
+                self.current_floor -= 1
+                self._generate_floor(self.current_floor)
+            else:
+                self.add_message("There are no stairs going up here.")
+        else:
+            self.add_message("There are no stairs here.")
 
     def _show_inventory(self):
         """Show inventory (currently just shows status)"""
@@ -563,11 +743,22 @@ class Game:
 
                 if 0 <= map_x < self.dungeon.width and 0 <= map_y < self.dungeon.height:
                     char = self.dungeon.tiles[map_y][map_x].value
+                    color = 1  # Default white
 
+                    # Check for stairs
+                    if self.stairs_down_pos and map_x == self.stairs_down_pos.x and map_y == self.stairs_down_pos.y:
+                        char = '>'
+                        color = 8  # Magenta
+                    elif self.stairs_up_pos and map_x == self.stairs_up_pos.x and map_y == self.stairs_up_pos.y:
+                        char = '<'
+                        color = 8  # Magenta
                     # Check for entities at this position
-                    if self.player.pos.x == map_x and self.player.pos.y == map_y:
+                    elif self.player.pos.x == map_x and self.player.pos.y == map_y:
                         char = self.player.char
                         color = 2  # Yellow
+                    elif self.pet and self.pet.alive and self.pet.pos.x == map_x and self.pet.pos.y == map_y:
+                        char = self.pet.char
+                        color = 7  # Blue
                     else:
                         enemy = self._get_entity_at(map_x, map_y, self.enemies)
                         if enemy:
@@ -578,8 +769,6 @@ class Game:
                             if item:
                                 char = item.char
                                 color = 4 if not isinstance(item, Treasure) else 5
-                            else:
-                                color = 1  # White
 
                     try:
                         if curses.has_colors():
@@ -590,16 +779,23 @@ class Game:
                         pass
 
         # Render UI
-        ui_y = height - 5
+        ui_y = height - 6
         try:
             # Player stats
             stats = f"HP: {self.player.hp}/{self.player.max_hp} | Lvl: {self.player.level} | Exp: {self.player.exp}/{self.player.exp_to_next} | Atk: {self.player.attack} | Def: {self.player.defense}"
             self.stdscr.addstr(ui_y, 0, "=" * min(width - 1, 80))
             self.stdscr.addstr(ui_y + 1, 0, stats[:width - 1])
 
+            # Pet stats and floor info
+            if self.pet and self.pet.alive:
+                pet_stats = f"Pet ({self.pet.name}): HP {self.pet.hp}/{self.pet.max_hp} | Floor: {self.current_floor}/{self.max_floors}"
+            else:
+                pet_stats = f"Pet: (deceased) | Floor: {self.current_floor}/{self.max_floors}"
+            self.stdscr.addstr(ui_y + 2, 0, pet_stats[:width - 1])
+
             # Messages
-            for i, msg in enumerate(self.messages[-3:]):
-                self.stdscr.addstr(ui_y + 2 + i, 0, msg[:width - 1])
+            for i, msg in enumerate(self.messages[-2:]):
+                self.stdscr.addstr(ui_y + 3 + i, 0, msg[:width - 1])
         except curses.error:
             pass
 

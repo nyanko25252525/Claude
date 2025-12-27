@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, '/home/user/Claude')
 
 from roguelike_game import (
-    Player, Enemy, Potion, Treasure, Dungeon, Position, Tile
+    Player, Enemy, Pet, Potion, Treasure, Dungeon, Position, Tile
 )
 
 
@@ -131,6 +131,36 @@ def test_game_statistics():
     print(f"✓ Game statistics test passed (kills tracked correctly)")
 
 
+def test_pet_creation():
+    """Test pet creation"""
+    dog = Pet(5, 5, 'dog')
+    assert dog.pos.x == 5
+    assert dog.pos.y == 5
+    assert dog.name == 'Dog'
+    assert dog.hp == 30
+    assert dog.attack == 8
+
+    cat = Pet(10, 10, 'cat')
+    assert cat.name == 'Cat'
+    assert cat.hp == 20
+    assert cat.attack == 6
+    print("✓ Pet creation test passed")
+
+
+def test_pet_combat():
+    """Test pet combat"""
+    dog = Pet(0, 0, 'dog')
+    goblin = Enemy(1, 1, 'goblin')
+
+    initial_hp = goblin.hp
+    damage = dog.attack
+    actual_damage = goblin.take_damage(damage)
+
+    assert goblin.hp < initial_hp
+    assert actual_damage > 0
+    print(f"✓ Pet combat test passed (dealt {actual_damage} damage)")
+
+
 def run_all_tests():
     """Run all tests"""
     print("Running Roguelike Game Tests...")
@@ -145,6 +175,8 @@ def run_all_tests():
         test_dungeon_generation()
         test_position_distance()
         test_game_statistics()
+        test_pet_creation()
+        test_pet_combat()
 
         print("=" * 50)
         print("All tests passed! ✓")
