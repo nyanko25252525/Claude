@@ -270,10 +270,13 @@ class GraphicalGame:
                 return False
 
             if event.type == pygame.KEYDOWN:
+                # Allow quitting at any time
                 if event.key in [pygame.K_ESCAPE, pygame.K_q]:
                     return False
 
+                # Game over screen - any key to continue viewing, ESC/Q to quit
                 if self.game_over:
+                    # Already handled ESC/Q above, so just continue
                     continue
 
                 # Movement
@@ -399,22 +402,42 @@ class GraphicalGame:
                         enemy.pos.y = new_y
 
     def update_pet(self):
-        """Update pet AI"""
+        """Update pet AI - follow player and attack nearby enemies"""
         if not self.pet or not self.pet.alive:
             return
 
-        # Check for adjacent enemies
+        # Check for adjacent enemies to attack
         for enemy in self.enemies:
             if not enemy.alive:
                 continue
 
             dist = self.pet.pos.distance_to(enemy.pos)
-            if dist <= 1.5:
+            if dist <= 1.5:  # Adjacent
                 self.combat(self.pet, enemy)
-                return
+                return  # Pet attacks instead of moving
 
-        # Follow player
+        # Check distance to player
         dist_to_player = self.pet.pos.distance_to(self.player.pos)
+
+        # If pet is too far away (stuck or lost), teleport it near the player
+        if dist_to_player > 8:
+            # Find a walkable position near the player
+            import random
+            for _ in range(20):  # Try up to 20 times to find a spot
+                offset_x = random.randint(-2, 2)
+                offset_y = random.randint(-2, 2)
+                new_x = self.player.pos.x + offset_x
+                new_y = self.player.pos.y + offset_y
+
+                if (self.dungeon.is_walkable(new_x, new_y) and
+                    not self.get_entity_at(new_x, new_y, self.enemies) and
+                    not (new_x == self.player.pos.x and new_y == self.player.pos.y)):
+                    self.pet.pos.x = new_x
+                    self.pet.pos.y = new_y
+                    self.add_message(f"{self.pet.name} catches up to you!")
+                    return
+
+        # Follow player if not too close
         if dist_to_player > 2:
             dx = 0 if self.pet.pos.x == self.player.pos.x else (1 if self.pet.pos.x < self.player.pos.x else -1)
             dy = 0 if self.pet.pos.y == self.player.pos.y else (1 if self.pet.pos.y < self.player.pos.y else -1)
@@ -422,11 +445,34 @@ class GraphicalGame:
             new_x = self.pet.pos.x + dx
             new_y = self.pet.pos.y + dy
 
+            # Try to move towards player
             if self.dungeon.is_walkable(new_x, new_y):
                 if not self.get_entity_at(new_x, new_y, self.enemies):
                     if not (new_x == self.player.pos.x and new_y == self.player.pos.y):
                         self.pet.pos.x = new_x
                         self.pet.pos.y = new_y
+                        return
+
+            # If direct path is blocked, try alternative moves
+            # Try moving only in X direction
+            if dx != 0:
+                alt_x = self.pet.pos.x + dx
+                alt_y = self.pet.pos.y
+                if (self.dungeon.is_walkable(alt_x, alt_y) and
+                    not self.get_entity_at(alt_x, alt_y, self.enemies) and
+                    not (alt_x == self.player.pos.x and alt_y == self.player.pos.y)):
+                    self.pet.pos.x = alt_x
+                    return
+
+            # Try moving only in Y direction
+            if dy != 0:
+                alt_x = self.pet.pos.x
+                alt_y = self.pet.pos.y + dy
+                if (self.dungeon.is_walkable(alt_x, alt_y) and
+                    not self.get_entity_at(alt_x, alt_y, self.enemies) and
+                    not (alt_x == self.player.pos.x and alt_y == self.player.pos.y)):
+                    self.pet.pos.y = alt_y
+                    return
 
     def use_stairs_down(self):
         """Use down stairs"""
@@ -505,10 +551,6 @@ class GraphicalGame:
         """Render the game"""
         self.screen.fill(BLACK)
 
-        if self.game_over:
-            self.draw_game_over()
-            return
-
         # Update camera
         self.update_camera()
 
@@ -566,6 +608,10 @@ class GraphicalGame:
         # Draw UI
         self.draw_ui()
 
+        # Draw game over screen on top if game is over
+        if self.game_over:
+            self.draw_game_over()
+
         pygame.display.flip()
 
     def draw_ui(self):
@@ -596,24 +642,42 @@ class GraphicalGame:
 
     def draw_game_over(self):
         """Draw game over screen"""
+        # Semi-transparent black overlay
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.set_alpha(200)
+        overlay.fill(BLACK)
+        self.screen.blit(overlay, (0, 0))
+
         if self.won:
-            title = "VICTORY!"
-            color = GREEN
-            message = "You found the treasure!"
+            title = "★ VICTORY! ★"
+            color = YELLOW
+            message = "You found the Ancient Treasure!"
+            subtitle = "Congratulations, brave hero!"
         else:
             title = "GAME OVER"
             color = RED
             message = f"Killed by {self.death_cause}"
+            subtitle = "Better luck next time..."
 
         # Draw title
         title_surface = pygame.font.Font(None, 72).render(title, True, color)
-        title_rect = title_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 100))
+        title_rect = title_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 120))
         self.screen.blit(title_surface, title_rect)
 
         # Draw message
         msg_surface = self.font.render(message, True, WHITE)
-        msg_rect = msg_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40))
+        msg_rect = msg_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 60))
         self.screen.blit(msg_surface, msg_rect)
+
+        # Draw subtitle
+        subtitle_surface = self.small_font.render(subtitle, True, GRAY)
+        subtitle_rect = subtitle_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 35))
+        self.screen.blit(subtitle_surface, subtitle_rect)
+
+        # Draw separator
+        pygame.draw.line(self.screen, GRAY,
+                        (SCREEN_WIDTH // 2 - 200, SCREEN_HEIGHT // 2 - 10),
+                        (SCREEN_WIDTH // 2 + 200, SCREEN_HEIGHT // 2 - 10), 2)
 
         # Draw stats
         stats = [
@@ -624,12 +688,12 @@ class GraphicalGame:
         ]
 
         for i, stat in enumerate(stats):
-            stat_surface = self.font.render(stat, True, YELLOW)
-            stat_rect = stat_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + i * 30))
+            stat_surface = self.font.render(stat, True, YELLOW if self.won else WHITE)
+            stat_rect = stat_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 20 + i * 30))
             self.screen.blit(stat_surface, stat_rect)
 
         # Draw quit message
-        quit_surface = self.small_font.render("Press ESC or Q to quit", True, GRAY)
+        quit_surface = self.font.render("Press ESC or Q to quit", True, GREEN)
         quit_rect = quit_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50))
         self.screen.blit(quit_surface, quit_rect)
 
