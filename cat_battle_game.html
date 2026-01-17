@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ネコバトル大戦争</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: white;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        #game-container {
+            width: 1000px;
+            background: #2d3436;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        #stage-info {
+            background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+        }
+
+        #game-canvas {
+            width: 1000px;
+            height: 400px;
+            display: block;
+        }
+
+        #controls {
+            background: #1e272e;
+            padding: 15px;
+        }
+
+        #resources {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #2d3436;
+            border-radius: 10px;
+        }
+
+        .resource {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1em;
+        }
+
+        .resource-icon {
+            font-size: 1.5em;
+        }
+
+        #unit-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .unit-btn {
+            width: 100px;
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-weight: bold;
+        }
+
+        .unit-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .unit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .unit-btn .emoji {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .unit-btn .cost {
+            font-size: 0.8em;
+            color: #ffd700;
+        }
+
+        .unit-btn .key {
+            font-size: 0.7em;
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-top: 3px;
+        }
+
+        #btn-soldier { background: linear-gradient(135deg, #74b9ff, #0984e3); color: white; }
+        #btn-warrior { background: linear-gradient(135deg, #fd79a8, #e84393); color: white; }
+        #btn-mage { background: linear-gradient(135deg, #a29bfe, #6c5ce7); color: white; }
+        #btn-tank { background: linear-gradient(135deg, #55a3ff, #2d7dd2); color: white; }
+        #btn-hero { background: linear-gradient(135deg, #ffeaa7, #fdcb6e); color: #2d3436; }
+
+        #menu-screen, #stage-select, #victory-screen, #defeat-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .menu-title {
+            font-size: 4em;
+            margin-bottom: 30px;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .menu-btn {
+            padding: 15px 50px;
+            font-size: 1.5em;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .menu-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, #00b894, #00cec9);
+            color: white;
+        }
+
+        .stage-btn {
+            width: 150px;
+            padding: 20px;
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            color: white;
+        }
+
+        .stage-btn:disabled {
+            background: #636e72;
+            cursor: not-allowed;
+        }
+
+        .stage-btn:disabled:hover {
+            transform: none;
+        }
+
+        .stage-grid {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 800px;
+        }
+
+        .back-btn {
+            background: linear-gradient(135deg, #636e72, #2d3436);
+            color: white;
+            margin-top: 30px;
+        }
+
+        .victory-title {
+            font-size: 4em;
+            color: #ffd700;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+        }
+
+        .defeat-title {
+            font-size: 4em;
+            color: #e74c3c;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+        }
+
+        .result-emoji {
+            font-size: 8em;
+            margin: 20px;
+        }
+
+        #instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .hp-bar {
+            position: absolute;
+            width: 40px;
+            height: 5px;
+            background: #636e72;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .hp-fill {
+            height: 100%;
+            background: #00b894;
+            transition: width 0.2s;
+        }
+
+        .hp-fill.enemy {
+            background: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <!-- メニュー画面 -->
+    <div id="menu-screen">
+        <div class="menu-title">🐱 ネコバトル大戦争 🐱</div>
+        <button class="menu-btn start-btn" onclick="showStageSelect()">ゲームスタート</button>
+        <div id="instructions">
+            <h3>🎮 遊び方</h3>
+            <p>お金を貯めてネコたちを召喚し、敵の拠点を破壊しよう！</p>
+            <p>キーボード 1〜5 でもユニットを召喚できます</p>
+        </div>
+    </div>
+
+    <!-- ステージ選択画面 -->
+    <div id="stage-select" class="hidden">
+        <div class="menu-title">ステージ選択</div>
+        <div class="stage-grid">
+            <button class="menu-btn stage-btn" onclick="startGame(1)">
+                🌿 ステージ1<br><small>草原</small>
+            </button>
+            <button class="menu-btn stage-btn" id="stage2-btn" onclick="startGame(2)">
+                🌲 ステージ2<br><small>森</small>
+            </button>
+            <button class="menu-btn stage-btn" id="stage3-btn" onclick="startGame(3)">
+                ⛰️ ステージ3<br><small>山</small>
+            </button>
+            <button class="menu-btn stage-btn" id="stage4-btn" onclick="startGame(4)">
+                🏰 ステージ4<br><small>城</small>
+            </button>
+            <button class="menu-btn stage-btn" id="stage5-btn" onclick="startGame(5)">
+                👿 ステージ5<br><small>魔王城</small>
+            </button>
+        </div>
+        <button class="menu-btn back-btn" onclick="showMenu()">戻る</button>
+    </div>
+
+    <!-- 勝利画面 -->
+    <div id="victory-screen" class="hidden">
+        <div class="result-emoji">🎉</div>
+        <div class="victory-title">勝利！</div>
+        <p style="font-size: 1.5em; margin: 20px;">ステージクリア！</p>
+        <button class="menu-btn start-btn" onclick="showStageSelect()">ステージ選択へ</button>
+    </div>
+
+    <!-- 敗北画面 -->
+    <div id="defeat-screen" class="hidden">
+        <div class="result-emoji">😿</div>
+        <div class="defeat-title">敗北...</div>
+        <p style="font-size: 1.5em; margin: 20px;">拠点が破壊されました</p>
+        <button class="menu-btn start-btn" onclick="retryStage()">リトライ</button>
+        <button class="menu-btn back-btn" onclick="showStageSelect()">ステージ選択へ</button>
+    </div>
+
+    <!-- ゲーム画面 -->
+    <div id="game-container" class="hidden">
+        <div id="stage-info">
+            <span id="stage-name">ステージ1: 草原</span>
+            <span id="enemy-count">残り敵: 0</span>
+        </div>
+        <canvas id="game-canvas" width="1000" height="400"></canvas>
+        <div id="controls">
+            <div id="resources">
+                <div class="resource">
+                    <span class="resource-icon">💰</span>
+                    <span>お金: <span id="money">100</span></span>
+                </div>
+                <div class="resource">
+                    <span class="resource-icon">⚡</span>
+                    <span>収入レベル: <span id="income-level">1</span></span>
+                </div>
+                <button class="menu-btn" style="padding: 5px 15px; font-size: 0.9em;" onclick="upgradeIncome()">
+                    収入UP (💰500)
+                </button>
+            </div>
+            <div id="unit-buttons">
+                <button class="unit-btn" id="btn-soldier" onclick="spawnUnit('soldier')">
+                    <span class="emoji">🐱</span>
+                    <span>ネコ兵</span>
+                    <span class="cost">💰50</span>
+                    <span class="key">[1]</span>
+                </button>
+                <button class="unit-btn" id="btn-warrior" onclick="spawnUnit('warrior')">
+                    <span class="emoji">😼</span>
+                    <span>ネコ戦士</span>
+                    <span class="cost">💰100</span>
+                    <span class="key">[2]</span>
+                </button>
+                <button class="unit-btn" id="btn-mage" onclick="spawnUnit('mage')">
+                    <span class="emoji">🙀</span>
+                    <span>ネコ魔法</span>
+                    <span class="cost">💰150</span>
+                    <span class="key">[3]</span>
+                </button>
+                <button class="unit-btn" id="btn-tank" onclick="spawnUnit('tank')">
+                    <span class="emoji">😾</span>
+                    <span>ネコタンク</span>
+                    <span class="cost">💰200</span>
+                    <span class="key">[4]</span>
+                </button>
+                <button class="unit-btn" id="btn-hero" onclick="spawnUnit('hero')">
+                    <span class="emoji">😻</span>
+                    <span>ネコ勇者</span>
+                    <span class="cost">💰400</span>
+                    <span class="key">[5]</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ゲーム状態
+        let gameState = {
+            money: 100,
+            incomeLevel: 1,
+            playerUnits: [],
+            enemyUnits: [],
+            playerBase: { hp: 1000, maxHp: 1000, x: 50 },
+            enemyBase: { hp: 1000, maxHp: 1000, x: 950 },
+            currentStage: 1,
+            enemySpawnTimer: 0,
+            enemySpawnQueue: [],
+            gameOver: false,
+            clearedStages: [false, false, false, false, false],
+            lastStage: 1
+        };
+
+        // ユニット定義
+        const unitTypes = {
+            // プレイヤーユニット
+            soldier: { name: 'ネコ兵', hp: 100, attack: 20, speed: 2, range: 30, cost: 50, cooldown: 1000, emoji: '🐱', attackSpeed: 1000 },
+            warrior: { name: 'ネコ戦士', hp: 200, attack: 35, speed: 1.5, range: 35, cost: 100, cooldown: 1500, emoji: '😼', attackSpeed: 1200 },
+            mage: { name: 'ネコ魔法', hp: 80, attack: 50, speed: 1, range: 150, cost: 150, cooldown: 2000, emoji: '🙀', attackSpeed: 2000 },
+            tank: { name: 'ネコタンク', hp: 500, attack: 15, speed: 0.8, range: 25, cost: 200, cooldown: 3000, emoji: '😾', attackSpeed: 1500 },
+            hero: { name: 'ネコ勇者', hp: 400, attack: 80, speed: 1.2, range: 40, cost: 400, cooldown: 5000, emoji: '😻', attackSpeed: 1000 },
+            // 敵ユニット
+            slime: { name: 'スライム', hp: 80, attack: 15, speed: 1.5, range: 25, emoji: '🟢', attackSpeed: 1200 },
+            goblin: { name: 'ゴブリン', hp: 120, attack: 25, speed: 2.5, range: 30, emoji: '👺', attackSpeed: 1000 },
+            orc: { name: 'オーク', hp: 300, attack: 40, speed: 1, range: 35, emoji: '👹', attackSpeed: 1500 },
+            dragon: { name: 'ドラゴン', hp: 250, attack: 60, speed: 1.2, range: 100, emoji: '🐲', attackSpeed: 2000 },
+            boss: { name: '魔王', hp: 2000, attack: 100, speed: 0.5, range: 50, emoji: '👿', attackSpeed: 2500 }
+        };
+
+        // ステージ定義
+        const stages = {
+            1: {
+                name: '草原',
+                background: '#90EE90',
+                enemies: [
+                    { type: 'slime', delay: 2000 },
+                    { type: 'slime', delay: 4000 },
+                    { type: 'slime', delay: 6000 },
+                    { type: 'slime', delay: 8000 },
+                    { type: 'slime', delay: 10000 },
+                    { type: 'slime', delay: 12000 },
+                    { type: 'slime', delay: 14000 },
+                    { type: 'slime', delay: 16000 },
+                ],
+                baseHp: 800
+            },
+            2: {
+                name: '森',
+                background: '#228B22',
+                enemies: [
+                    { type: 'slime', delay: 2000 },
+                    { type: 'goblin', delay: 4000 },
+                    { type: 'slime', delay: 6000 },
+                    { type: 'goblin', delay: 8000 },
+                    { type: 'slime', delay: 10000 },
+                    { type: 'goblin', delay: 12000 },
+                    { type: 'goblin', delay: 14000 },
+                    { type: 'slime', delay: 16000 },
+                    { type: 'goblin', delay: 18000 },
+                ],
+                baseHp: 1000
+            },
+            3: {
+                name: '山',
+                background: '#8B4513',
+                enemies: [
+                    { type: 'goblin', delay: 2000 },
+                    { type: 'goblin', delay: 4000 },
+                    { type: 'orc', delay: 7000 },
+                    { type: 'goblin', delay: 9000 },
+                    { type: 'orc', delay: 12000 },
+                    { type: 'goblin', delay: 14000 },
+                    { type: 'orc', delay: 17000 },
+                    { type: 'goblin', delay: 19000 },
+                    { type: 'orc', delay: 22000 },
+                ],
+                baseHp: 1200
+            },
+            4: {
+                name: '城',
+                background: '#696969',
+                enemies: [
+                    { type: 'orc', delay: 2000 },
+                    { type: 'orc', delay: 5000 },
+                    { type: 'dragon', delay: 8000 },
+                    { type: 'orc', delay: 11000 },
+                    { type: 'dragon', delay: 14000 },
+                    { type: 'orc', delay: 17000 },
+                    { type: 'dragon', delay: 20000 },
+                    { type: 'orc', delay: 23000 },
+                    { type: 'dragon', delay: 26000 },
+                ],
+                baseHp: 1500
+            },
+            5: {
+                name: '魔王城',
+                background: '#1a0a2e',
+                enemies: [
+                    { type: 'goblin', delay: 2000 },
+                    { type: 'orc', delay: 4000 },
+                    { type: 'dragon', delay: 7000 },
+                    { type: 'goblin', delay: 9000 },
+                    { type: 'orc', delay: 11000 },
+                    { type: 'dragon', delay: 14000 },
+                    { type: 'orc', delay: 17000 },
+                    { type: 'dragon', delay: 20000 },
+                    { type: 'boss', delay: 25000 },
+                ],
+                baseHp: 2000
+            }
+        };
+
+        // クールダウン管理
+        let cooldowns = {
+            soldier: 0,
+            warrior: 0,
+            mage: 0,
+            tank: 0,
+            hero: 0
+        };
+
+        // Canvas設定
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        let animationId;
+        let lastTime = 0;
+        let gameStartTime = 0;
+
+        // 画面表示制御
+        function showMenu() {
+            document.getElementById('menu-screen').classList.remove('hidden');
+            document.getElementById('stage-select').classList.add('hidden');
+            document.getElementById('game-container').classList.add('hidden');
+            document.getElementById('victory-screen').classList.add('hidden');
+            document.getElementById('defeat-screen').classList.add('hidden');
+        }
+
+        function showStageSelect() {
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('stage-select').classList.remove('hidden');
+            document.getElementById('game-container').classList.add('hidden');
+            document.getElementById('victory-screen').classList.add('hidden');
+            document.getElementById('defeat-screen').classList.add('hidden');
+            updateStageButtons();
+        }
+
+        function updateStageButtons() {
+            for (let i = 2; i <= 5; i++) {
+                const btn = document.getElementById(`stage${i}-btn`);
+                btn.disabled = !gameState.clearedStages[i - 2];
+            }
+        }
+
+        function startGame(stage) {
+            gameState.currentStage = stage;
+            gameState.lastStage = stage;
+            initGame();
+            document.getElementById('stage-select').classList.add('hidden');
+            document.getElementById('game-container').classList.remove('hidden');
+            gameLoop(0);
+        }
+
+        function retryStage() {
+            startGame(gameState.lastStage);
+        }
+
+        // ゲーム初期化
+        function initGame() {
+            const stageData = stages[gameState.currentStage];
+
+            gameState.money = 100;
+            gameState.incomeLevel = 1;
+            gameState.playerUnits = [];
+            gameState.enemyUnits = [];
+            gameState.playerBase = { hp: 1000, maxHp: 1000, x: 50 };
+            gameState.enemyBase = { hp: stageData.baseHp, maxHp: stageData.baseHp, x: 950 };
+            gameState.enemySpawnQueue = [...stageData.enemies];
+            gameState.gameOver = false;
+            gameStartTime = Date.now();
+
+            cooldowns = { soldier: 0, warrior: 0, mage: 0, tank: 0, hero: 0 };
+
+            document.getElementById('stage-name').textContent = `ステージ${gameState.currentStage}: ${stageData.name}`;
+            updateUI();
+        }
+
+        // ユニット召喚
+        function spawnUnit(type) {
+            const unit = unitTypes[type];
+            const now = Date.now();
+
+            if (gameState.money >= unit.cost && now >= cooldowns[type]) {
+                gameState.money -= unit.cost;
+                cooldowns[type] = now + unit.cooldown;
+
+                gameState.playerUnits.push({
+                    type: type,
+                    x: 80,
+                    y: 200 + Math.random() * 100,
+                    hp: unit.hp,
+                    maxHp: unit.hp,
+                    lastAttack: 0,
+                    isPlayer: true
+                });
+
+                updateUI();
+            }
+        }
+
+        // 敵ユニット召喚
+        function spawnEnemy(type) {
+            const unit = unitTypes[type];
+            gameState.enemyUnits.push({
+                type: type,
+                x: 920,
+                y: 200 + Math.random() * 100,
+                hp: unit.hp,
+                maxHp: unit.hp,
+                lastAttack: 0,
+                isPlayer: false
+            });
+        }
+
+        // 収入アップグレード
+        function upgradeIncome() {
+            if (gameState.money >= 500 && gameState.incomeLevel < 8) {
+                gameState.money -= 500;
+                gameState.incomeLevel++;
+                updateUI();
+            }
+        }
+
+        // UI更新
+        function updateUI() {
+            document.getElementById('money').textContent = Math.floor(gameState.money);
+            document.getElementById('income-level').textContent = gameState.incomeLevel;
+            document.getElementById('enemy-count').textContent = `残り敵: ${gameState.enemySpawnQueue.length + gameState.enemyUnits.length}`;
+
+            const now = Date.now();
+            Object.keys(cooldowns).forEach(type => {
+                const btn = document.getElementById(`btn-${type}`);
+                const unit = unitTypes[type];
+                const remaining = Math.max(0, cooldowns[type] - now);
+                btn.disabled = gameState.money < unit.cost || remaining > 0;
+
+                if (remaining > 0) {
+                    btn.style.opacity = '0.6';
+                } else {
+                    btn.style.opacity = gameState.money < unit.cost ? '0.5' : '1';
+                }
+            });
+        }
+
+        // ゲームループ
+        function gameLoop(timestamp) {
+            if (gameState.gameOver) return;
+
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            update(deltaTime);
+            render();
+            updateUI();
+
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // ゲーム更新
+        function update(deltaTime) {
+            const now = Date.now();
+            const gameTime = now - gameStartTime;
+
+            // 収入
+            gameState.money += (gameState.incomeLevel * 0.5) * (deltaTime / 1000) * 10;
+
+            // 敵スポーン
+            while (gameState.enemySpawnQueue.length > 0 && gameTime >= gameState.enemySpawnQueue[0].delay) {
+                const enemy = gameState.enemySpawnQueue.shift();
+                spawnEnemy(enemy.type);
+            }
+
+            // ユニット更新
+            updateUnits(gameState.playerUnits, gameState.enemyUnits, gameState.enemyBase, 1);
+            updateUnits(gameState.enemyUnits, gameState.playerUnits, gameState.playerBase, -1);
+
+            // 死亡ユニット除去
+            gameState.playerUnits = gameState.playerUnits.filter(u => u.hp > 0);
+            gameState.enemyUnits = gameState.enemyUnits.filter(u => u.hp > 0);
+
+            // 勝敗判定
+            checkGameEnd();
+        }
+
+        function updateUnits(units, enemies, targetBase, direction) {
+            const now = Date.now();
+
+            units.forEach(unit => {
+                const unitData = unitTypes[unit.type];
+
+                // 攻撃対象を探す
+                let target = null;
+                let minDist = Infinity;
+
+                // 敵ユニット
+                enemies.forEach(enemy => {
+                    const dist = Math.abs(unit.x - enemy.x);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        target = enemy;
+                    }
+                });
+
+                // 拠点との距離
+                const baseDist = Math.abs(unit.x - targetBase.x);
+                if (baseDist < minDist) {
+                    minDist = baseDist;
+                    target = targetBase;
+                }
+
+                // 攻撃範囲内なら攻撃
+                if (minDist <= unitData.range) {
+                    if (now - unit.lastAttack >= unitData.attackSpeed) {
+                        target.hp -= unitData.attack;
+                        unit.lastAttack = now;
+                    }
+                } else {
+                    // 移動
+                    unit.x += unitData.speed * direction;
+                }
+            });
+        }
+
+        function checkGameEnd() {
+            if (gameState.enemyBase.hp <= 0) {
+                gameState.gameOver = true;
+                gameState.clearedStages[gameState.currentStage - 1] = true;
+                cancelAnimationFrame(animationId);
+                setTimeout(() => {
+                    document.getElementById('game-container').classList.add('hidden');
+                    document.getElementById('victory-screen').classList.remove('hidden');
+                }, 500);
+            } else if (gameState.playerBase.hp <= 0) {
+                gameState.gameOver = true;
+                cancelAnimationFrame(animationId);
+                setTimeout(() => {
+                    document.getElementById('game-container').classList.add('hidden');
+                    document.getElementById('defeat-screen').classList.remove('hidden');
+                }, 500);
+            }
+        }
+
+        // 描画
+        function render() {
+            const stageData = stages[gameState.currentStage];
+
+            // 背景
+            ctx.fillStyle = stageData.background;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 地面
+            ctx.fillStyle = '#654321';
+            ctx.fillRect(0, 320, canvas.width, 80);
+
+            // 草
+            ctx.fillStyle = '#228B22';
+            ctx.fillRect(0, 320, canvas.width, 10);
+
+            // 拠点描画
+            drawBase(gameState.playerBase, '🏠', true);
+            drawBase(gameState.enemyBase, '🏯', false);
+
+            // ユニット描画
+            gameState.playerUnits.forEach(unit => drawUnit(unit, true));
+            gameState.enemyUnits.forEach(unit => drawUnit(unit, false));
+        }
+
+        function drawBase(base, emoji, isPlayer) {
+            ctx.font = '60px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(emoji, base.x, 290);
+
+            // HPバー
+            const hpPercent = base.hp / base.maxHp;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(base.x - 40, 230, 80, 10);
+            ctx.fillStyle = isPlayer ? '#00b894' : '#e74c3c';
+            ctx.fillRect(base.x - 40, 230, 80 * hpPercent, 10);
+
+            // HP数値
+            ctx.font = '12px sans-serif';
+            ctx.fillStyle = 'white';
+            ctx.fillText(`${Math.max(0, Math.floor(base.hp))}/${base.maxHp}`, base.x, 225);
+        }
+
+        function drawUnit(unit, isPlayer) {
+            const unitData = unitTypes[unit.type];
+
+            // ユニット
+            ctx.font = unit.type === 'boss' ? '50px serif' : '35px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(unitData.emoji, unit.x, unit.y);
+
+            // HPバー
+            const hpPercent = unit.hp / unit.maxHp;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(unit.x - 20, unit.y - 45, 40, 5);
+            ctx.fillStyle = isPlayer ? '#00b894' : '#e74c3c';
+            ctx.fillRect(unit.x - 20, unit.y - 45, 40 * hpPercent, 5);
+        }
+
+        // キーボード操作
+        document.addEventListener('keydown', (e) => {
+            if (gameState.gameOver) return;
+
+            const keyMap = { '1': 'soldier', '2': 'warrior', '3': 'mage', '4': 'tank', '5': 'hero' };
+            if (keyMap[e.key]) {
+                spawnUnit(keyMap[e.key]);
+            }
+        });
+
+        // 初期表示
+        showMenu();
+    </script>
+</body>
+</html>
