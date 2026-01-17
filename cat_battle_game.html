@@ -391,12 +391,12 @@
             mage: { name: 'ネコ魔法', hp: 80, attack: 50, speed: 1, range: 150, cost: 150, cooldown: 2000, emoji: '🙀', attackSpeed: 2000 },
             tank: { name: 'ネコタンク', hp: 500, attack: 15, speed: 0.8, range: 25, cost: 200, cooldown: 3000, emoji: '😾', attackSpeed: 1500 },
             hero: { name: 'ネコ勇者', hp: 400, attack: 80, speed: 1.2, range: 40, cost: 400, cooldown: 5000, emoji: '😻', attackSpeed: 1000 },
-            // 敵ユニット
-            slime: { name: 'スライム', hp: 80, attack: 15, speed: 1.5, range: 25, emoji: '🟢', attackSpeed: 1200 },
-            goblin: { name: 'ゴブリン', hp: 120, attack: 25, speed: 2.5, range: 30, emoji: '👺', attackSpeed: 1000 },
-            orc: { name: 'オーク', hp: 300, attack: 40, speed: 1, range: 35, emoji: '👹', attackSpeed: 1500 },
-            dragon: { name: 'ドラゴン', hp: 250, attack: 60, speed: 1.2, range: 100, emoji: '🐲', attackSpeed: 2000 },
-            boss: { name: '魔王', hp: 2000, attack: 100, speed: 0.5, range: 50, emoji: '👿', attackSpeed: 2500 }
+            // 敵ユニット（reward = 倒した時の報酬）
+            slime: { name: 'スライム', hp: 80, attack: 15, speed: 1.5, range: 25, emoji: '🟢', attackSpeed: 1200, reward: 30 },
+            goblin: { name: 'ゴブリン', hp: 120, attack: 25, speed: 2.5, range: 30, emoji: '👺', attackSpeed: 1000, reward: 50 },
+            orc: { name: 'オーク', hp: 300, attack: 40, speed: 1, range: 35, emoji: '👹', attackSpeed: 1500, reward: 80 },
+            dragon: { name: 'ドラゴン', hp: 250, attack: 60, speed: 1.2, range: 100, emoji: '🐲', attackSpeed: 2000, reward: 120 },
+            boss: { name: '魔王', hp: 2000, attack: 100, speed: 0.5, range: 50, emoji: '👿', attackSpeed: 2500, reward: 500 }
         };
 
         // ステージ定義
@@ -655,9 +655,16 @@
             updateUnits(gameState.playerUnits, gameState.enemyUnits, gameState.enemyBase, 1);
             updateUnits(gameState.enemyUnits, gameState.playerUnits, gameState.playerBase, -1);
 
-            // 死亡ユニット除去
+            // 死亡ユニット除去（敵を倒したらお金獲得）
             gameState.playerUnits = gameState.playerUnits.filter(u => u.hp > 0);
-            gameState.enemyUnits = gameState.enemyUnits.filter(u => u.hp > 0);
+            gameState.enemyUnits = gameState.enemyUnits.filter(u => {
+                if (u.hp <= 0) {
+                    const unitData = unitTypes[u.type];
+                    gameState.money += unitData.reward;
+                    return false;
+                }
+                return true;
+            });
 
             // 勝敗判定
             checkGameEnd();
