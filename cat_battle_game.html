@@ -524,12 +524,25 @@
         }
 
         function startGame(stage) {
+            // 前のゲームループをキャンセル
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+
             gameState.currentStage = stage;
             gameState.lastStage = stage;
             initGame();
+
+            // すべての画面を隠してゲーム画面を表示
+            document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('stage-select').classList.add('hidden');
+            document.getElementById('victory-screen').classList.add('hidden');
+            document.getElementById('defeat-screen').classList.add('hidden');
             document.getElementById('game-container').classList.remove('hidden');
-            gameLoop(0);
+
+            // タイミングをリセットしてゲームループ開始
+            lastTime = 0;
+            requestAnimationFrame(gameLoop);
         }
 
         function retryStage() {
